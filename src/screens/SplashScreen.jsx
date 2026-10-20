@@ -1,8 +1,39 @@
 
+import { useEffect, useRef } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import {
+  Animated,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 
-export default function SplashScreen() {
+export default function SplashScreen({ onFinish }) {
+  const progress = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const animation = Animated.timing(progress, {
+      toValue: 1,
+      duration: 1200,
+      useNativeDriver: false,
+    });
+
+    animation.start(({ finished }) => {
+      if (finished) {
+        onFinish?.();
+      }
+    });
+
+    return () => {
+      animation.stop();
+    };
+  }, [progress, onFinish]);
+
+  const progressWidth = progress.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0%', '100%'],
+  });
+
   return (
     <View style={styles.container}>
       <StatusBar style="light" backgroundColor="#080808" />
@@ -20,13 +51,18 @@ export default function SplashScreen() {
         </Text>
 
         <Text style={styles.tagline}>
-          SEU MUNDO DE FILMES E SÉRIES
+          SEU MUNDO DAS SÉRIES
         </Text>
       </View>
 
       <View style={styles.loadingContainer}>
         <View style={styles.loadingTrack}>
-          <View style={styles.loadingProgress} />
+          <Animated.View
+            style={[
+              styles.loadingProgress,
+              { width: progressWidth },
+            ]}
+          />
         </View>
       </View>
     </View>
@@ -128,7 +164,6 @@ const styles = StyleSheet.create({
   },
 
   loadingProgress: {
-    width: '50%',
     height: '100%',
     borderRadius: 10,
     backgroundColor: '#E50914',
