@@ -1,4 +1,5 @@
-import { useState } from 'react';
+
+import { useState, useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import {
   View,
@@ -8,48 +9,51 @@ import {
   Image,
   Pressable,
   StyleSheet,
+  ActivityIndicator,
 } from 'react-native';
 
-const series = [
-  {
-    id: '1',
-    nome: 'Stranger Things',
-    genero: 'Ficção científica',
-    nota: '8.7',
-    imagem:
-      'https://image.tmdb.org/t/p/w500/x2LSRK2Cm7MZhjluni1msVJ3wDF.jpg',
-  },
-  {
-    id: '2',
-    nome: 'Breaking Bad',
-    genero: 'Drama / Crime',
-    nota: '9.5',
-    imagem:
-      'https://image.tmdb.org/t/p/w500/ztkUQFLlC19CCMYHW9o1zWhJRNq.jpg',
-  },
-  {
-    id: '3',
-    nome: 'The Last of Us',
-    genero: 'Drama / Aventura',
-    nota: '8.5',
-    imagem:
-      'https://image.tmdb.org/t/p/w500/uKvVjHNqB5VmOrdxqAt2F7J78ED.jpg',
-  },
-  {
-    id: '4',
-    nome: 'Wandinha',
-    genero: 'Mistério / Comédia',
-    nota: '8.0',
-    imagem:
-      'https://image.tmdb.org/t/p/w500/9PFonBhy4cQy7Jz20NpMygczOkv.jpg',
-  },
-];
+const API_URL = 'https://assista-plus.onrender.com/series';
 
 export default function HomeScreen({ onAbrirSerie }) {
   const [busca, setBusca] = useState('');
+  const [series, setSeries] = useState([]);
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState('');
+
+  useEffect(() => {
+    async function carregarSeries() {
+      try {
+        setErro('');
+
+        const resposta = await fetch(API_URL);
+
+        if (!resposta.ok) {
+          throw new Error(`Erro HTTP: ${resposta.status}`);
+        }
+
+        const dados = await resposta.json();
+
+        const listaSeries =
+          dados._embedded?.serieResponseDTOList ?? [];
+
+        setSeries(Array.isArray(listaSeries) ? listaSeries : []);
+      } catch (error) {
+        console.error('Erro ao carregar séries:', error);
+        setErro(
+          'Não foi possível carregar as séries. Verifique sua conexão e tente novamente.'
+        );
+      } finally {
+        setCarregando(false);
+      }
+    }
+
+    carregarSeries();
+  }, []);
 
   const seriesFiltradas = series.filter((serie) =>
-    serie.nome.toLowerCase().includes(busca.toLowerCase().trim())
+    serie.titulo
+      ?.toLowerCase()
+      .includes(busca.toLowerCase().trim())
   );
 
   return (
@@ -67,7 +71,9 @@ export default function HomeScreen({ onAbrirSerie }) {
             ASSISTA<Text style={styles.plus}>+</Text>
           </Text>
 
-          <Text style={styles.slogan}>SEU MUNDO DAS SÉRIES</Text>
+          <Text style={styles.slogan}>
+            SEU MUNDO DAS SÉRIES
+          </Text>
         </View>
 
         <View style={styles.buscaContainer}>
@@ -86,50 +92,148 @@ export default function HomeScreen({ onAbrirSerie }) {
 
         <View style={styles.secao}>
           <View style={styles.secaoHeader}>
-            <Text style={styles.secaoTitulo}>Em destaque</Text>
+            <Text style={styles.secaoTitulo}>
+              Em destaque
+            </Text>
 
             <Text style={styles.quantidade}>
               {seriesFiltradas.length}{' '}
-              {seriesFiltradas.length === 1 ? 'série' : 'séries'}
+              {seriesFiltradas.length === 1
+                ? 'série'
+                : 'séries'}
             </Text>
           </View>
 
-          <View style={styles.listaSeries}>
-            {seriesFiltradas.map((serie) => (
+          {carregando && (
+            <View style={styles.estadoContainer}>
+              <ActivityIndicator
+                size="large"
+                color="#E50914"
+              />
+
+              <Text style={styles.estadoTexto}>
+                Carregando séries...
+              </Text>
+            </View>
+          )}
+
+          {!carregando && erro !== '' && (
+            <View style={styles.estadoContainer}>
+              <Text style={styles.erroTexto}>{erro}</Text>
+
               <Pressable
-                key={serie.id}
-                style={styles.card}
-                onPress={() => onAbrirSerie?.(serie)}
-                accessibilityRole="button"
-                accessibilityLabel={`Ver detalhes de ${serie.nome}`}
+                style={styles.botaoTentar}
+                onPress={() => {
+                  setCarregando(true);
+                  setErro('');
+
+                  fetch(API_URL)
+                    .then((resposta) => {
+                      if (!resposta.ok) {
+                        throw new Error(
+                          `Erro HTTP: ${resposta.status}`
+                        );
+                      }
+
+                      return resposta.json();
+                    })
+                    .then((dados) => {
+                      const lista =
+                        dados._embedded?.serieResponseDTOList ??
+                        [];
+
+                      setSeries(
+                        Array.isArray(lista) ? lista : []
+                      );
+                    })
+                    .catch((error) => {
+                      console.error(
+                        'Erro ao tentar novamente:',
+                        error
+                      );
+
+                      setErro(
+                        'Não foi possível carregar as séries. Tente novamente.'
+                      );
+                    })
+                    .finally(() => setCarregando(false));
+                }}
               >
-                <Image
-                  source={{ uri: serie.imagem }}
-                  style={styles.capa}
-                  resizeMode="cover"
-                />
-
-                <View style={styles.nota}>
-                  <Text style={styles.notaTexto}>
-                    ★ {serie.nota}
-                  </Text>
-                </View>
-
-                <Text style={styles.nomeSerie} numberOfLines={1}>
-                  {serie.nome}
-                </Text>
-
-                <Text style={styles.genero} numberOfLines={1}>
-                  {serie.genero}
+                <Text style={styles.botaoTentarTexto}>
+                  TENTAR NOVAMENTE
                 </Text>
               </Pressable>
-            ))}
-          </View>
+            </View>
+          )}
 
-          {seriesFiltradas.length === 0 && (
-            <Text style={styles.semResultados}>
-              Nenhuma série encontrada.
-            </Text>
+          {!carregando && erro === '' && (
+            <>
+              <View style={styles.listaSeries}>
+                {seriesFiltradas.map((serie) => (
+                  <Pressable
+                    key={serie.id}
+                    style={styles.card}
+                    onPress={() => onAbrirSerie?.(serie)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Ver detalhes de ${serie.titulo}`}
+                  >
+                    {serie.imagemUrl ? (
+                      <Image
+                        source={{ uri: serie.imagemUrl }}
+                        style={styles.capa}
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <View
+                        style={[
+                          styles.capa,
+                          styles.capaSemImagem,
+                        ]}
+                      >
+                        <Text style={styles.capaSemImagemTexto}>
+                          ASSISTA+
+                        </Text>
+                      </View>
+                    )}
+
+                    <View style={styles.status}>
+                      <Text style={styles.statusTexto}>
+                        {serie.status || 'SEM STATUS'}
+                      </Text>
+                    </View>
+
+                    <Text
+                      style={styles.nomeSerie}
+                      numberOfLines={2}
+                    >
+                      {serie.titulo || 'Série sem título'}
+                    </Text>
+
+                    <Text
+                      style={styles.genero}
+                      numberOfLines={2}
+                    >
+                      {serie.nomeGeneros?.join(' / ') ||
+                        'Sem gênero informado'}
+                    </Text>
+
+                    {serie.anoLancamento != null && (
+                      <Text style={styles.ano}>
+                        {serie.anoLancamento}
+                      </Text>
+                    )}
+                  </Pressable>
+                ))}
+              </View>
+
+              {seriesFiltradas.length === 0 && (
+                <Text style={styles.semResultados}>
+                  {series.length === 0
+                    ? 'Nenhuma série cadastrada ainda.'
+                    : 'Nenhuma série encontrada.'}
+                </Text>
+              )}
+            </>
           )}
         </View>
 
@@ -230,35 +334,76 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: '#202020',
   },
-  nota: {
-    position: 'absolute',
-    top: 9,
-    left: 8,
-    backgroundColor: '#080808',
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-    borderRadius: 6,
+  capaSemImagem: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  notaTexto: {
-    color: '#FFD166',
-    fontSize: 12,
+  capaSemImagemTexto: {
+    color: '#E50914',
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  status: {
+    alignSelf: 'flex-start',
+    marginTop: 8,
+    backgroundColor: '#251012',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 5,
+  },
+  statusTexto: {
+    color: '#FF5B63',
+    fontSize: 9,
     fontWeight: '800',
   },
   nomeSerie: {
     color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '800',
-    marginTop: 10,
+    marginTop: 8,
   },
   genero: {
     color: '#999999',
     fontSize: 12,
     marginTop: 5,
   },
+  ano: {
+    color: '#777777',
+    fontSize: 11,
+    marginTop: 5,
+  },
+  estadoContainer: {
+    alignItems: 'center',
+    paddingVertical: 35,
+  },
+  estadoTexto: {
+    color: '#999999',
+    fontSize: 13,
+    marginTop: 12,
+  },
+  erroTexto: {
+    color: '#FF7777',
+    fontSize: 13,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  botaoTentar: {
+    backgroundColor: '#E50914',
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginTop: 18,
+  },
+  botaoTentarTexto: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
+  },
   semResultados: {
     color: '#999999',
     textAlign: 'center',
     marginTop: 25,
+    lineHeight: 20,
   },
   rodape: {
     color: '#555555',

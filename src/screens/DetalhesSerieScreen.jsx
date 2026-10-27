@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import {
@@ -18,12 +19,15 @@ const DetalhesSerieScreen = ({ route, navigation }) => {
   const serie = route?.params?.serie;
 
   const { alternarFavorito, ehFavorito } = useFavoritos();
+
   const favorita = serie ? ehFavorito(serie.id) : false;
 
   const [temporadaAberta, setTemporadaAberta] = useState(1);
   const [notaSelecionada, setNotaSelecionada] = useState(0);
   const [comentario, setComentario] = useState('');
 
+  // Avaliações locais de demonstração.
+  // Posteriormente, podem ser substituídas pelas avaliações da API.
   const [avaliacoes, setAvaliacoes] = useState([
     {
       id: '1',
@@ -45,14 +49,30 @@ const DetalhesSerieScreen = ({ route, navigation }) => {
     },
   ]);
 
+  // Dados reais disponíveis no retorno da API.
   const detalhes = {
     sinopse:
-      'Uma cidade pequena enfrenta acontecimentos misteriosos que mudam a vida de seus moradores.',
-    atores: ['Millie Bobby Brown', 'Finn Wolfhard', 'David Harbour'],
-    diretor: 'Irmãos Duffer',
-    generos: [serie?.genero ?? 'Drama'],
+      serie?.descricao?.trim() ||
+      'Nenhuma sinopse foi cadastrada para esta série.',
+
+    diretor:
+      serie?.nomeDiretor ||
+      'Diretor não informado',
+
+    generos:
+      Array.isArray(serie?.nomeGeneros)
+        ? serie.nomeGeneros
+        : [],
+
+    ano: serie?.anoLancamento,
+
+    status:
+      serie?.status ||
+      'Não informado',
   };
 
+  // Temporadas e episódios de demonstração.
+  // A API atual ainda não fornece esses dados.
   const temporadas = [
     {
       id: 1,
@@ -62,19 +82,16 @@ const DetalhesSerieScreen = ({ route, navigation }) => {
           numero: 1,
           titulo: 'Capítulo Um: O Desaparecimento de Will Byers',
           duracao: 48,
-          temporadaId: 1,
         },
         {
           numero: 2,
           titulo: 'Capítulo Dois: A Estranha da Rua Maple',
           duracao: 55,
-          temporadaId: 1,
         },
         {
           numero: 3,
           titulo: 'Capítulo Três: Caramba',
           duracao: 51,
-          temporadaId: 1,
         },
       ],
     },
@@ -86,17 +103,21 @@ const DetalhesSerieScreen = ({ route, navigation }) => {
           numero: 1,
           titulo: 'Capítulo Um: MADMAX',
           duracao: 48,
-          temporadaId: 2,
         },
         {
           numero: 2,
           titulo: 'Capítulo Dois: Doces ou Travessuras',
           duracao: 56,
-          temporadaId: 2,
         },
       ],
     },
   ];
+
+  const quantidadeEpisodios = temporadas.reduce(
+    (total, temporada) =>
+      total + temporada.episodios.length,
+    0
+  );
 
   const publicarAvaliacao = () => {
     const textoComentario = comentario.trim();
@@ -136,14 +157,9 @@ const DetalhesSerieScreen = ({ route, navigation }) => {
 
     Alert.alert(
       'Avaliação publicada!',
-      'Seu comentário foi adicionado à lista nesta sessão.'
+      'Seu comentário foi adicionado à lista nesta sessão. Ele ainda não foi enviado à API.'
     );
   };
-
-  const quantidadeEpisodios = temporadas.reduce(
-    (total, temporada) => total + temporada.episodios.length,
-    0
-  );
 
   const handleFavorito = () => {
     if (!serie) {
@@ -157,12 +173,35 @@ const DetalhesSerieScreen = ({ route, navigation }) => {
     alternarFavorito(serie);
 
     Alert.alert(
-      favorita ? 'Favorito removido' : 'Adicionado aos favoritos',
+      favorita
+        ? 'Favorito removido'
+        : 'Adicionado aos favoritos',
       favorita
         ? 'A série foi removida dos seus favoritos.'
         : 'A série foi salva nos favoritos do seu aparelho.'
     );
   };
+
+  if (!serie) {
+    return (
+      <View style={styles.container}>
+        <StatusBar style="light" backgroundColor="#080808" />
+
+        <Text style={styles.erro}>
+          Não foi possível carregar os detalhes da série.
+        </Text>
+
+        <Pressable
+          style={styles.botaoVoltar}
+          onPress={() => navigation?.goBack()}
+        >
+          <Text style={styles.textoVoltar}>
+            ‹  Voltar
+          </Text>
+        </Pressable>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -175,43 +214,58 @@ const DetalhesSerieScreen = ({ route, navigation }) => {
       >
         <Pressable
           style={styles.botaoVoltar}
-          onPress={() => navigation.goBack()}
+          onPress={() => navigation?.goBack()}
         >
-          <Text style={styles.textoVoltar}>‹  Voltar</Text>
+          <Text style={styles.textoVoltar}>
+            ‹  Voltar
+          </Text>
         </Pressable>
 
         {/* Informações principais da série */}
         <View style={styles.cabecalho}>
-          <Image
-            source={
-              serie?.imagem
-                ? { uri: serie.imagem }
-                : undefined
-            }
-            style={styles.capa}
-            resizeMode="cover"
-          />
+          {serie.imagemUrl ? (
+            <Image
+              source={{ uri: serie.imagemUrl }}
+              style={styles.capa}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={[styles.capa, styles.capaVazia]}>
+              <MaterialCommunityIcons
+                name="movie-open-outline"
+                size={38}
+                color="#777777"
+              />
+
+              <Text style={styles.textoCapaVazia}>
+                Sem imagem
+              </Text>
+            </View>
+          )}
 
           <View style={styles.informacoesPrincipais}>
             <Text style={styles.titulo}>
-              {serie?.nome ?? 'Detalhes da série'}
+              {serie.titulo ?? 'Detalhes da série'}
             </Text>
 
             <Text style={styles.generoPrincipal}>
-              {serie?.genero ?? 'Gênero não informado'}
+              {detalhes.generos.length > 0
+                ? detalhes.generos.join(' / ')
+                : 'Gênero não informado'}
             </Text>
 
-            <Text style={styles.notaMedia}>
-              ★ {serie?.nota ?? '—'}
-              <Text style={styles.notaLegenda}> / 10</Text>
+            {detalhes.ano != null && (
+              <Text style={styles.dadoPrincipal}>
+                Ano: {detalhes.ano}
+              </Text>
+            )}
+
+            <Text style={styles.dadoPrincipal}>
+              Status: {detalhes.status}
             </Text>
 
             <Text style={styles.dadoPrincipal}>
-              {temporadas.length} temporadas
-            </Text>
-
-            <Text style={styles.dadoPrincipal}>
-              {quantidadeEpisodios} episódios
+              Diretor: {detalhes.diretor}
             </Text>
           </View>
         </View>
@@ -247,26 +301,39 @@ const DetalhesSerieScreen = ({ route, navigation }) => {
 
         {/* Sinopse */}
         <View style={styles.secao}>
-          <Text style={styles.tituloSecao}>Sinopse</Text>
-          <Text style={styles.descricao}>{detalhes.sinopse}</Text>
+          <Text style={styles.tituloSecao}>
+            Sinopse
+          </Text>
+
+          <Text style={styles.descricao}>
+            {detalhes.sinopse}
+          </Text>
         </View>
 
         {/* Gêneros */}
         <View style={styles.secao}>
-          <Text style={styles.tituloSecao}>Gêneros</Text>
+          <Text style={styles.tituloSecao}>
+            Gêneros
+          </Text>
 
-          <View style={styles.listaGeneros}>
-            {detalhes.generos.map((genero, index) => (
-              <View
-                key={`${genero}-${index}`}
-                style={styles.generoTag}
-              >
-                <Text style={styles.textoGeneroTag}>
-                  {genero}
-                </Text>
-              </View>
-            ))}
-          </View>
+          {detalhes.generos.length > 0 ? (
+            <View style={styles.listaGeneros}>
+              {detalhes.generos.map((genero, index) => (
+                <View
+                  key={`${genero}-${index}`}
+                  style={styles.generoTag}
+                >
+                  <Text style={styles.textoGeneroTag}>
+                    {genero}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          ) : (
+            <Text style={styles.descricao}>
+              Nenhum gênero cadastrado.
+            </Text>
+          )}
         </View>
 
         {/* Temporadas e episódios */}
@@ -276,11 +343,13 @@ const DetalhesSerieScreen = ({ route, navigation }) => {
           </Text>
 
           <Text style={styles.textoAuxiliar}>
-            Selecione uma temporada para ver seus episódios.
+            Conteúdo de demonstração. As temporadas e os episódios
+            ainda não estão disponíveis na API.
           </Text>
 
           {temporadas.map((temporada) => {
-            const aberta = temporadaAberta === temporada.id;
+            const aberta =
+              temporadaAberta === temporada.id;
 
             return (
               <View
@@ -356,19 +425,24 @@ const DetalhesSerieScreen = ({ route, navigation }) => {
 
         {/* Elenco */}
         <View style={styles.secao}>
-          <Text style={styles.tituloSecao}>Elenco</Text>
+          <Text style={styles.tituloSecao}>
+            Elenco
+          </Text>
 
-          {detalhes.atores.map((ator) => (
-            <Text key={ator} style={styles.itemInformacao}>
-              • {ator}
-            </Text>
-          ))}
+          <Text style={styles.textoAuxiliar}>
+            Os atores ainda não são fornecidos pela API.
+          </Text>
         </View>
 
         {/* Direção */}
         <View style={styles.secao}>
-          <Text style={styles.tituloSecao}>Direção</Text>
-          <Text style={styles.descricao}>{detalhes.diretor}</Text>
+          <Text style={styles.tituloSecao}>
+            Direção
+          </Text>
+
+          <Text style={styles.descricao}>
+            {detalhes.diretor}
+          </Text>
         </View>
 
         {/* Avaliações e comentários */}
@@ -378,7 +452,8 @@ const DetalhesSerieScreen = ({ route, navigation }) => {
           </Text>
 
           <Text style={styles.textoAuxiliar}>
-            Veja as opiniões e compartilhe a sua.
+            Veja os exemplos de opiniões e compartilhe a sua.
+            As avaliações ainda são locais e não são enviadas à API.
           </Text>
 
           {/* Formulário de avaliação */}
@@ -387,7 +462,9 @@ const DetalhesSerieScreen = ({ route, navigation }) => {
               Deixe sua avaliação
             </Text>
 
-            <Text style={styles.rotuloNota}>Sua nota</Text>
+            <Text style={styles.rotuloNota}>
+              Sua nota
+            </Text>
 
             <View style={styles.estrelas}>
               {[1, 2, 3, 4, 5].map((nota) => (
@@ -453,7 +530,9 @@ const DetalhesSerieScreen = ({ route, navigation }) => {
 
           {avaliacoes.length === 0 ? (
             <View style={styles.semAvaliacoes}>
-              <Text style={styles.iconeSemAvaliacoes}>☆</Text>
+              <Text style={styles.iconeSemAvaliacoes}>
+                ☆
+              </Text>
 
               <Text style={styles.tituloSemAvaliacoes}>
                 Nenhuma avaliação ainda
@@ -563,6 +642,17 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: '#202020',
   },
+  capaVazia: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 8,
+  },
+  textoCapaVazia: {
+    color: '#777777',
+    fontSize: 11,
+    marginTop: 8,
+    textAlign: 'center',
+  },
   informacoesPrincipais: {
     flex: 1,
     justifyContent: 'center',
@@ -577,19 +667,15 @@ const styles = StyleSheet.create({
     color: '#AAAAAA',
     fontSize: 13,
   },
-  notaMedia: {
-    color: '#FFD166',
-    fontSize: 17,
-    fontWeight: '800',
-  },
-  notaLegenda: {
-    color: '#AAAAAA',
-    fontSize: 12,
-    fontWeight: '400',
-  },
   dadoPrincipal: {
     color: '#FFFFFF',
     fontSize: 13,
+  },
+  erro: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    textAlign: 'center',
+    margin: 25,
   },
 
   // Botão de favoritar
@@ -663,6 +749,8 @@ const styles = StyleSheet.create({
     marginBottom: 14,
     lineHeight: 19,
   },
+
+  // Temporadas e episódios
   cardTemporada: {
     backgroundColor: '#141414',
     borderWidth: 1,
@@ -754,6 +842,8 @@ const styles = StyleSheet.create({
     color: '#BBBBBB',
     fontSize: 11,
   },
+
+  // Formulário de avaliação
   formularioAvaliacao: {
     backgroundColor: '#141414',
     borderWidth: 1,
@@ -825,6 +915,8 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '800',
   },
+
+  // Lista de comentários
   cabecalhoComentarios: {
     flexDirection: 'row',
     alignItems: 'center',

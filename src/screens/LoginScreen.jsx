@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import {
@@ -9,7 +10,10 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Alert,
 } from 'react-native';
+
+const API_URL = 'https://assista-plus.onrender.com';
 
 export default function LoginScreen({
   onIrCadastro,
@@ -18,14 +22,55 @@ export default function LoginScreen({
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
   const [lembrarLogin, setLembrarLogin] = useState(false);
+  const [carregando, setCarregando] = useState(false);
 
-  function handleLogin() {
+  async function handleLogin() {
     if (!email.trim() || !senha.trim()) {
-      alert('Preencha o e-mail e a senha.');
+      Alert.alert('Atenção', 'Preencha o e-mail e a senha.');
       return;
     }
 
-    onLoginSucesso?.();
+    try {
+      setCarregando(true);
+
+      const resposta = await fetch(
+        `${API_URL}/usuarios?page=0&size=50`
+      );
+
+      if (!resposta.ok) {
+        throw new Error('Erro ao consultar usuários.');
+      }
+
+      const dados = await resposta.json();
+
+      const usuarios =
+        dados?._embedded?.usuarioResponseDTOList ?? [];
+
+      const usuario = usuarios.find(
+        (item) =>
+          item.email?.toLowerCase() === email.trim().toLowerCase()
+      );
+
+      if (!usuario) {
+        Alert.alert(
+          'Login inválido',
+          'Não encontramos uma conta com esse e-mail.'
+        );
+        return;
+      }
+
+      Alert.alert(
+        'Autenticação necessária',
+        'O e-mail está cadastrado, mas sua API não disponibiliza uma rota para validar a senha. Por segurança, não é possível concluir o login ainda.'
+      );
+    } catch (erro) {
+      Alert.alert(
+        'Erro de conexão',
+        'Não foi possível conectar à API. Tente novamente.'
+      );
+    } finally {
+      setCarregando(false);
+    }
   }
 
   function handleCadastro() {
@@ -108,9 +153,10 @@ export default function LoginScreen({
             <Pressable
               style={styles.loginButton}
               onPress={handleLogin}
+              disabled={carregando}
             >
               <Text style={styles.loginButtonText}>
-                ENTRAR
+                {carregando ? 'CONECTANDO...' : 'ENTRAR'}
               </Text>
             </Pressable>
 
