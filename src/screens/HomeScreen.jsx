@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import {
   View,
@@ -11,6 +11,7 @@ import {
   StyleSheet,
   ActivityIndicator,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 
 const API_URL = 'https://assista-plus.onrender.com/series';
 
@@ -20,35 +21,41 @@ export default function HomeScreen({ onAbrirSerie }) {
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
 
-  useEffect(() => {
-    async function carregarSeries() {
-      try {
-        setErro('');
+  const carregarSeries = useCallback(async () => {
+    try {
+      setCarregando(true);
+      setErro('');
 
-        const resposta = await fetch(API_URL);
+      const resposta = await fetch(API_URL);
 
-        if (!resposta.ok) {
-          throw new Error(`Erro HTTP: ${resposta.status}`);
-        }
-
-        const dados = await resposta.json();
-
-        const listaSeries =
-          dados._embedded?.serieResponseDTOList ?? [];
-
-        setSeries(Array.isArray(listaSeries) ? listaSeries : []);
-      } catch (error) {
-        console.error('Erro ao carregar séries:', error);
-        setErro(
-          'Não foi possível carregar as séries. Verifique sua conexão e tente novamente.'
-        );
-      } finally {
-        setCarregando(false);
+      if (!resposta.ok) {
+        throw new Error(`Erro HTTP: ${resposta.status}`);
       }
-    }
 
-    carregarSeries();
+      const dados = await resposta.json();
+
+      console.log('Resposta da API:', dados);
+
+      const listaSeries =
+        dados._embedded?.serieResponseDTOList ?? [];
+
+      setSeries(Array.isArray(listaSeries) ? listaSeries : []);
+    } catch (error) {
+      console.error('Erro ao carregar séries:', error);
+
+      setErro(
+        'Não foi possível carregar as séries. Verifique sua conexão e tente novamente.'
+      );
+    } finally {
+      setCarregando(false);
+    }
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      carregarSeries();
+    }, [carregarSeries])
+  );
 
   const seriesFiltradas = series.filter((serie) =>
     serie.titulo
@@ -123,41 +130,7 @@ export default function HomeScreen({ onAbrirSerie }) {
 
               <Pressable
                 style={styles.botaoTentar}
-                onPress={() => {
-                  setCarregando(true);
-                  setErro('');
-
-                  fetch(API_URL)
-                    .then((resposta) => {
-                      if (!resposta.ok) {
-                        throw new Error(
-                          `Erro HTTP: ${resposta.status}`
-                        );
-                      }
-
-                      return resposta.json();
-                    })
-                    .then((dados) => {
-                      const lista =
-                        dados._embedded?.serieResponseDTOList ??
-                        [];
-
-                      setSeries(
-                        Array.isArray(lista) ? lista : []
-                      );
-                    })
-                    .catch((error) => {
-                      console.error(
-                        'Erro ao tentar novamente:',
-                        error
-                      );
-
-                      setErro(
-                        'Não foi possível carregar as séries. Tente novamente.'
-                      );
-                    })
-                    .finally(() => setCarregando(false));
-                }}
+                onPress={carregarSeries}
               >
                 <Text style={styles.botaoTentarTexto}>
                   TENTAR NOVAMENTE

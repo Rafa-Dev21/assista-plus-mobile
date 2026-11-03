@@ -1,10 +1,14 @@
+
+import { useState } from 'react';
+
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 
 import { FavoritosProvider } from './src/context/FavoritosContext';
+import { MinhasSeriesProvider } from './src/context/MinhasSeriesContext';
 
 import SplashScreen from './src/screens/SplashScreen';
 import LoginScreen from './src/screens/LoginScreen';
@@ -13,36 +17,26 @@ import HomeScreen from './src/screens/HomeScreen';
 import DetalhesSerieScreen from './src/screens/DetalhesSerieScreen';
 import FavoritosScreen from './src/screens/FavoritosScreen';
 import CadastrarSerieScreen from './src/screens/CadastrarSerieScreen';
+import MinhasSeriesScreen from './src/screens/MinhasSeriesScreen';
 import PerfilScreen from './src/screens/PerfilScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
-function TelaProvisoria({ route }) {
-  const titulo = route.params?.titulo ?? 'Em breve';
-
-  return (
-    <View style={styles.placeholder}>
-      <Text style={styles.placeholderTitulo}>{titulo}</Text>
-
-      <Text style={styles.placeholderTexto}>
-        Esta tela será desenvolvida em breve.
-      </Text>
-    </View>
-  );
-}
-
-function InicioScreen({ navigation }) {
+function InicioScreen({ navigation, usuario }) {
   return (
     <HomeScreen
       onAbrirSerie={(serie) =>
-        navigation.getParent()?.navigate('DetalhesSerie', { serie })
+        navigation.getParent()?.navigate('DetalhesSerie', {
+          serie,
+          usuario,
+        })
       }
     />
   );
 }
 
-function MenuPrincipal() {
+function MenuPrincipal({ usuario, onSair }) {
   return (
     <Tab.Navigator
       screenOptions={{
@@ -64,7 +58,6 @@ function MenuPrincipal() {
     >
       <Tab.Screen
         name="Inicio"
-        component={InicioScreen}
         options={{
           tabBarLabel: 'Início',
           tabBarIcon: ({ color, size }) => (
@@ -75,7 +68,14 @@ function MenuPrincipal() {
             />
           ),
         }}
-      />
+      >
+        {(props) => (
+          <InicioScreen
+            {...props}
+            usuario={usuario}
+          />
+        )}
+      </Tab.Screen>
 
       <Tab.Screen
         name="Favoritos"
@@ -94,7 +94,6 @@ function MenuPrincipal() {
 
       <Tab.Screen
         name="CadastrarSerie"
-        component={CadastrarSerieScreen}
         options={{
           tabBarLabel: '',
           tabBarIcon: () => (
@@ -107,12 +106,17 @@ function MenuPrincipal() {
             </View>
           ),
         }}
-      />
+      >
+        {(props) => (
+          <CadastrarSerieScreen
+            {...props}
+            usuario={usuario}
+          />
+        )}
+      </Tab.Screen>
 
       <Tab.Screen
         name="MinhasSeries"
-        component={TelaProvisoria}
-        initialParams={{ titulo: 'Minhas séries' }}
         options={{
           tabBarLabel: 'Minhas séries',
           tabBarIcon: ({ color, size }) => (
@@ -123,11 +127,17 @@ function MenuPrincipal() {
             />
           ),
         }}
-      />
+      >
+        {(props) => (
+          <MinhasSeriesScreen
+            {...props}
+            usuario={usuario}
+          />
+        )}
+      </Tab.Screen>
 
       <Tab.Screen
         name="Perfil"
-        component={PerfilScreen}
         options={{
           tabBarLabel: 'Perfil',
           tabBarIcon: ({ color, size }) => (
@@ -138,86 +148,91 @@ function MenuPrincipal() {
             />
           ),
         }}
-      />
+      >
+        {(props) => (
+          <PerfilScreen
+            {...props}
+            usuario={usuario}
+            onSair={onSair}
+          />
+        )}
+      </Tab.Screen>
     </Tab.Navigator>
   );
 }
 
 export default function App() {
+  const [usuarioLogado, setUsuarioLogado] = useState(null);
+
   return (
     <FavoritosProvider>
-      <NavigationContainer>
-        <Stack.Navigator
-          initialRouteName="Splash"
-          screenOptions={{
-            headerShown: false,
-            contentStyle: {
-              backgroundColor: '#080808',
-            },
-          }}
-        >
-          <Stack.Screen name="Splash">
-            {({ navigation }) => (
-              <SplashScreen
-                onFinish={() => navigation.replace('Login')}
-              />
-            )}
-          </Stack.Screen>
+      <MinhasSeriesProvider>
+        <NavigationContainer>
+          <Stack.Navigator
+            initialRouteName="Splash"
+            screenOptions={{
+              headerShown: false,
+              contentStyle: {
+                backgroundColor: '#080808',
+              },
+            }}
+          >
+            <Stack.Screen name="Splash">
+              {({ navigation }) => (
+                <SplashScreen
+                  onFinish={() => navigation.replace('Login')}
+                />
+              )}
+            </Stack.Screen>
 
-          <Stack.Screen name="Login">
-            {({ navigation }) => (
-              <LoginScreen
-                onIrCadastro={() => navigation.navigate('Cadastro')}
-                onLoginSucesso={() => navigation.replace('Principal')}
-              />
-            )}
-          </Stack.Screen>
+            <Stack.Screen name="Login">
+              {({ navigation }) => (
+                <LoginScreen
+                  onIrCadastro={() => navigation.navigate('Cadastro')}
+                  onLoginSucesso={(usuario) => {
+                    setUsuarioLogado(usuario);
+                    navigation.replace('Principal');
+                  }}
+                />
+              )}
+            </Stack.Screen>
 
-          <Stack.Screen name="Cadastro">
-            {({ navigation }) => (
-              <CadastroScreen
-                onVoltarLogin={() => navigation.navigate('Login')}
-              />
-            )}
-          </Stack.Screen>
+            <Stack.Screen name="Cadastro">
+              {({ navigation }) => (
+                <CadastroScreen
+                  onVoltarLogin={() => navigation.navigate('Login')}
+                />
+              )}
+            </Stack.Screen>
 
-          <Stack.Screen
-            name="Principal"
-            component={MenuPrincipal}
-          />
+            <Stack.Screen name="Principal">
+              {({ navigation }) => (
+                <MenuPrincipal
+                  usuario={usuarioLogado}
+                  onSair={() => {
+                    setUsuarioLogado(null);
 
-          <Stack.Screen
-            name="DetalhesSerie"
-            component={DetalhesSerieScreen}
-          />
-        </Stack.Navigator>
-      </NavigationContainer>
+                    navigation.reset({
+                      index: 0,
+                      routes: [{ name: 'Login' }],
+                    });
+                  }}
+                />
+              )}
+            </Stack.Screen>
+
+            <Stack.Screen
+              name="DetalhesSerie"
+              component={DetalhesSerieScreen}
+            />
+          </Stack.Navigator>
+        </NavigationContainer>
+      </MinhasSeriesProvider>
     </FavoritosProvider>
   );
 }
 
 const styles = StyleSheet.create({
-  placeholder: {
-    flex: 1,
-    backgroundColor: '#080808',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-  },
-
-  placeholderTitulo: {
-    color: '#E50914',
-    fontSize: 25,
-    fontWeight: 'bold',
-    marginBottom: 12,
-  },
-
-  placeholderTexto: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    textAlign: 'center',
-  },
-
   botaoMais: {
     width: 43,
     height: 43,

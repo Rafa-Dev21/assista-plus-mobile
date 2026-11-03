@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { apiGet, apiPost } from '../services/api';
+import { useMinhasSeries } from '../context/MinhasSeriesContext';
 
 const STATUS = [
   { valor: 'EM_EXIBICAO', texto: 'Em exibição' },
@@ -67,7 +68,8 @@ function Campo({
   );
 }
 
-export default function CadastrarSerieScreen() {
+export default function CadastrarSerieScreen({ usuario }) {
+  const { adicionarMinhaSerie } = useMinhasSeries();
   const [etapa, setEtapa] = useState(0);
   const [carregando, setCarregando] = useState(false);
   const [carregandoGeneros, setCarregandoGeneros] = useState(false);
@@ -468,18 +470,65 @@ export default function CadastrarSerieScreen() {
     }
   }
 
-  function finalizarCadastro() {
-    Alert.alert(
-      'Cadastro concluído!',
-      `${titulo} foi cadastrada com ${totalTemporadas} temporada(s) e ${totalEpisodios} episódio(s).`,
-      [
-        {
-          text: 'Concluir',
-          onPress: limparFormulario,
-        },
-      ]
-    );
+ 
+function finalizarCadastro() {
+  if (!serieId) {
+    Alert.alert('Ops!', 'Não foi possível localizar a série cadastrada.');
+    return;
   }
+
+  if (totalTemporadas === 0 || totalEpisodios === 0) {
+    Alert.alert(
+      'Cadastro incompleto',
+      'Cadastre pelo menos uma temporada e um episódio antes de finalizar.'
+    );
+    return;
+  }
+
+  Alert.alert(
+    'Finalizar cadastro',
+    `Deseja concluir o cadastro de ${titulo}?\n\n${totalTemporadas} temporada(s) e ${totalEpisodios} episódio(s) cadastrados.`,
+    [
+      {
+        text: 'Continuar editando',
+        style: 'cancel',
+      },
+      {
+        text: 'Finalizar',
+        onPress: () => {
+          const serieLocal = {
+            id: serieId,
+            usuarioId: usuario?.id,
+            titulo: titulo.trim(),
+            descricao: descricao.trim(),
+            anoLancamento: Number(anoLancamento),
+            imagemUrl: imagemUrl.trim() || null,
+            status,
+            nomeDiretor: nomeDiretor.trim(),
+            nomeGeneros: generosSelecionados.map(
+              (genero) => genero.nome
+            ),
+            idiomaOriginal: idiomaOriginal.trim(),
+            paisOrigem: paisOrigem.trim(),
+            classificacaoIndicativa: Number(classificacaoIndicativa),
+            totalTemporadas,
+            totalEpisodios,
+          };
+
+          adicionarMinhaSerie(serieLocal);
+
+          Alert.alert(
+            'Cadastro concluído!',
+            'Sua série foi salva em Minhas Séries.'
+          );
+
+          limparFormulario();
+        },
+      },
+    ]
+  );
+}
+
 
   function limparFormulario() {
     setEtapa(0);
@@ -949,6 +998,8 @@ export default function CadastrarSerieScreen() {
               {totalTemporadas} temporada(s) concluída(s) nesta sessão ·{' '}
               {totalEpisodios} episódio(s) cadastrado(s)
             </Text>
+
+            
           </View>
         )}
 

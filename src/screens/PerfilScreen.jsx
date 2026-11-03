@@ -1,4 +1,5 @@
-import { useState } from 'react';
+
+import { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,11 +10,19 @@ import {
   Alert,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 
-export default function PerfilScreen() {
-  const [nome, setNome] = useState('Seu nome');
-  const [email, setEmail] = useState('seuemail@email.com');
+export default function PerfilScreen({ usuario, onSair }) {
+  const navigation = useNavigation();
+
+  const [nome, setNome] = useState(usuario?.nome ?? '');
+  const [email, setEmail] = useState(usuario?.email ?? '');
   const [editando, setEditando] = useState(false);
+
+  useEffect(() => {
+    setNome(usuario?.nome ?? '');
+    setEmail(usuario?.email ?? '');
+  }, [usuario]);
 
   function salvarPerfil() {
     if (!nome.trim() || !email.trim()) {
@@ -32,8 +41,29 @@ export default function PerfilScreen() {
   function sairDaConta() {
     Alert.alert(
       'Sair da conta',
-      'A função de logout será conectada à autenticação posteriormente.',
+      'Tem certeza que deseja sair da sua conta?',
+      [
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+        },
+        {
+          text: 'Sair',
+          style: 'destructive',
+          onPress: () => {
+            onSair?.();
+          },
+        },
+      ],
     );
+  }
+
+  function abrirMinhasSeries() {
+    navigation.navigate('MinhasSeries');
+  }
+
+  function abrirFavoritos() {
+    navigation.navigate('Favoritos');
   }
 
   return (
@@ -137,8 +167,8 @@ export default function PerfilScreen() {
           <Pressable
             style={styles.botaoCancelar}
             onPress={() => {
-              setNome('Seu nome');
-              setEmail('seuemail@email.com');
+              setNome(usuario?.nome ?? '');
+              setEmail(usuario?.email ?? '');
               setEditando(false);
             }}
           >
@@ -151,7 +181,10 @@ export default function PerfilScreen() {
       <View style={styles.secao}>
         <Text style={styles.tituloSecao}>SOBRE SUA CONTA</Text>
 
-        <View style={styles.opcao}>
+        <Pressable
+          style={styles.opcao}
+          onPress={abrirMinhasSeries}
+        >
           <MaterialCommunityIcons
             name="movie-open-outline"
             size={24}
@@ -170,9 +203,12 @@ export default function PerfilScreen() {
             size={23}
             color="#777777"
           />
-        </View>
+        </Pressable>
 
-        <View style={styles.opcao}>
+        <Pressable
+          style={styles.opcao}
+          onPress={abrirFavoritos}
+        >
           <MaterialCommunityIcons
             name="heart-outline"
             size={24}
@@ -191,7 +227,7 @@ export default function PerfilScreen() {
             size={23}
             color="#777777"
           />
-        </View>
+        </Pressable>
       </View>
 
       {/* Sair */}

@@ -10,20 +10,104 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Alert,
 } from 'react-native';
+
+const API_URL = 'https://assista-plus.onrender.com';
 
 export default function CadastroScreen({ onVoltarLogin }) {
   const [nome, setNome] = useState('');
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
+  const [carregando, setCarregando] = useState(false);
 
-  function handleCadastro() {
-    if (!nome.trim() || !email.trim() || !senha.trim()) {
-      alert('Preencha todos os campos.');
+  async function handleCadastro() {
+    const nomeDigitado = nome.trim();
+    const emailDigitado = email.trim().toLowerCase();
+    const senhaDigitada = senha;
+
+    if (!nomeDigitado || !emailDigitado || !senhaDigitada.trim()) {
+      Alert.alert('Atenção', 'Preencha todos os campos.');
       return;
     }
 
-    alert('Cadastro pronto! A conexão com a API será feita depois.');
+    if (!emailDigitado.includes('@') || !emailDigitado.includes('.')) {
+      Alert.alert('Atenção', 'Digite um e-mail válido.');
+      return;
+    }
+
+    try {
+      setCarregando(true);
+
+      const resposta = await fetch(`${API_URL}/usuarios`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: '*/*',
+        },
+        body: JSON.stringify({
+          nome: nomeDigitado,
+          email: emailDigitado,
+          senha: senhaDigitada,
+        }),
+      });
+
+      if (resposta.status === 201) {
+        Alert.alert(
+          'Cadastro realizado!',
+          'Sua conta foi criada com sucesso. Agora você já pode entrar!',
+          [
+            {
+              text: 'Ir para login',
+              onPress: () => {
+                setNome('');
+                setEmail('');
+                setSenha('');
+                onVoltarLogin?.();
+              },
+            },
+          ]
+        );
+        return;
+      }
+
+      if (resposta.status === 400) {
+        Alert.alert(
+          'Dados inválidos',
+          'Confira seu nome, e-mail e senha. Verifique se a senha atende aos requisitos.'
+        );
+        return;
+      }
+
+      if (resposta.status === 409) {
+        Alert.alert(
+          'E-mail já cadastrado',
+          'Este e-mail já está sendo utilizado. Tente outro.'
+        );
+        return;
+      }
+
+      if (resposta.status === 429) {
+        Alert.alert(
+          'Muitas tentativas',
+          'Você excedeu o limite de 15 requisições por minuto. Aguarde um minuto antes de tentar novamente.'
+        );
+        return;
+      }
+
+      Alert.alert(
+        'Erro no cadastro',
+        `Não foi possível criar sua conta. Código: ${resposta.status}`
+      );
+
+    } catch (erro) {
+      Alert.alert(
+        'Erro de conexão',
+        'Não foi possível conectar à API. Verifique sua internet e tente novamente.'
+      );
+    } finally {
+      setCarregando(false);
+    }
   }
 
   function handleLogin() {
@@ -104,9 +188,10 @@ export default function CadastroScreen({ onVoltarLogin }) {
             <Pressable
               style={styles.registerButton}
               onPress={handleCadastro}
+              disabled={carregando}
             >
               <Text style={styles.registerButtonText}>
-                CRIAR CONTA
+                {carregando ? 'CADASTRANDO...' : 'CRIAR CONTA'}
               </Text>
             </Pressable>
 

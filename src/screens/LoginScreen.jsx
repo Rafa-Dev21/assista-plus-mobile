@@ -1,6 +1,8 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
+import * as SecureStore from 'expo-secure-store';
+
 import {
   StyleSheet,
   Text,
@@ -24,9 +26,36 @@ export default function LoginScreen({
   const [lembrarLogin, setLembrarLogin] = useState(false);
   const [carregando, setCarregando] = useState(false);
 
+  // Carrega os dados salvos quando abrir a tela.
+  useEffect(() => {
+    async function carregarLoginSalvo() {
+      try {
+        const emailSalvo = await SecureStore.getItemAsync('login_email');
+        const senhaSalva = await SecureStore.getItemAsync('login_senha');
+
+        if (emailSalvo && senhaSalva) {
+          setEmail(emailSalvo);
+          setSenha(senhaSalva);
+          setLembrarLogin(true);
+        }
+      } catch (erro) {
+        console.log('Erro ao carregar login salvo:', erro);
+      }
+    }
+
+    carregarLoginSalvo();
+  }, []);
+
   async function handleLogin() {
-    if (!email.trim() || !senha.trim()) {
+    const emailDigitado = email.trim().toLowerCase();
+
+    if (!emailDigitado || !senha.trim()) {
       Alert.alert('Atenção', 'Preencha o e-mail e a senha.');
+      return;
+    }
+
+    if (!emailDigitado.includes('@') || !emailDigitado.includes('.')) {
+      Alert.alert('Atenção', 'Digite um e-mail válido.');
       return;
     }
 
@@ -37,8 +66,36 @@ export default function LoginScreen({
         `${API_URL}/usuarios?page=0&size=50`
       );
 
+      if (resposta.status === 400) {
+        Alert.alert(
+          'Dados inválidos',
+          'Verifique os dados informados e tente novamente.'
+        );
+        return;
+      }
+
+      if (resposta.status === 409) {
+        Alert.alert(
+          'Conflito na consulta',
+          'Não foi possível realizar a consulta dos usuários.'
+        );
+        return;
+      }
+
+      if (resposta.status === 429) {
+        Alert.alert(
+          'Muitas tentativas',
+          'Você excedeu o limite de 15 requisições por minuto. Aguarde um minuto antes de tentar novamente.'
+        );
+        return;
+      }
+
       if (!resposta.ok) {
-        throw new Error('Erro ao consultar usuários.');
+        Alert.alert(
+          'Erro ao consultar usuários',
+          `Não foi possível realizar o login. Código: ${resposta.status}`
+        );
+        return;
       }
 
       const dados = await resposta.json();
@@ -48,7 +105,7 @@ export default function LoginScreen({
 
       const usuario = usuarios.find(
         (item) =>
-          item.email?.toLowerCase() === email.trim().toLowerCase()
+          item.email?.trim().toLowerCase() === emailDigitado
       );
 
       if (!usuario) {
@@ -59,14 +116,25 @@ export default function LoginScreen({
         return;
       }
 
-      Alert.alert(
-        'Autenticação necessária',
-        'O e-mail está cadastrado, mas sua API não disponibiliza uma rota para validar a senha. Por segurança, não é possível concluir o login ainda.'
-      );
+      // Salva ou apaga os dados conforme a opção escolhida.
+      if (lembrarLogin) {
+        await SecureStore.setItemAsync('login_email', emailDigitado);
+        await SecureStore.setItemAsync('login_senha', senha);
+      } else {
+        await SecureStore.deleteItemAsync('login_email');
+        await SecureStore.deleteItemAsync('login_senha');
+      }
+
+      onLoginSucesso?.({
+        id: usuario.id,
+        nome: usuario.nome,
+        email: usuario.email,
+      });
+
     } catch (erro) {
       Alert.alert(
         'Erro de conexão',
-        'Não foi possível conectar à API. Tente novamente.'
+        'Não foi possível conectar à API. Verifique sua internet e tente novamente.'
       );
     } finally {
       setCarregando(false);
@@ -75,6 +143,21 @@ export default function LoginScreen({
 
   function handleCadastro() {
     onIrCadastro?.();
+  }
+
+  async function handleLembrarLogin() {
+    const novoValor = !lembrarLogin;
+
+    setLembrarLogin(novoValor);
+
+    if (!novoValor) {
+      try {
+        await SecureStore.deleteItemAsync('login_email');
+        await SecureStore.deleteItemAsync('login_senha');
+      } catch (erro) {
+        console.log('Erro ao apagar login salvo:', erro);
+      }
+    }
   }
 
   return (
@@ -132,7 +215,7 @@ export default function LoginScreen({
 
             <Pressable
               style={styles.rememberContainer}
-              onPress={() => setLembrarLogin(!lembrarLogin)}
+              onPress={handleLembrarLogin}
             >
               <View
                 style={[

@@ -1,3 +1,4 @@
+
 import {
   View,
   Text,
@@ -21,9 +22,11 @@ const FavoritosScreen = () => {
   };
 
   const removerFavorito = (serie) => {
+    const titulo = serie.titulo || serie.nome || 'esta série';
+
     Alert.alert(
       'Remover dos favoritos',
-      `Deseja remover "${serie.nome}" dos seus favoritos?`,
+      `Deseja remover "${titulo}" dos seus favoritos?`,
       [
         {
           text: 'Cancelar',
@@ -122,67 +125,85 @@ const FavoritosScreen = () => {
             </View>
           ) : (
             <View style={styles.listaSeries}>
-              {favoritos.map((serie) => (
-                <View
-                  key={String(serie.id)}
-                  style={styles.card}
-                >
-                  <Pressable
-                    style={styles.areaSerie}
-                    onPress={() => abrirDetalhes(serie)}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Ver detalhes de ${serie.nome}`}
+              {favoritos.map((serie) => {
+                const titulo =
+                  serie.titulo || serie.nome || 'Série sem título';
+
+                const imagem =
+                  serie.imagemUrl || serie.imagem;
+
+                const genero = Array.isArray(serie.nomeGeneros)
+                  ? serie.nomeGeneros.join(' / ')
+                  : serie.genero || 'Gênero não informado';
+
+                return (
+                  <View
+                    key={String(serie.id)}
+                    style={styles.card}
                   >
-                    {serie.imagem ? (
-                      <Image
-                        source={{ uri: serie.imagem }}
-                        style={styles.capa}
-                        resizeMode="cover"
-                      />
-                    ) : (
-                      <View style={[styles.capa, styles.capaVazia]}>
-                        <MaterialCommunityIcons
-                          name="movie-open"
-                          size={32}
-                          color="#777777"
+                    <Pressable
+                      style={styles.areaSerie}
+                      onPress={() => abrirDetalhes(serie)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Ver detalhes de ${titulo}`}
+                    >
+                      {imagem ? (
+                        <Image
+                          source={{ uri: imagem }}
+                          style={styles.capa}
+                          resizeMode="cover"
                         />
-                      </View>
-                    )}
+                      ) : (
+                        <View style={[styles.capa, styles.capaVazia]}>
+                          <MaterialCommunityIcons
+                            name="movie-open"
+                            size={32}
+                            color="#777777"
+                          />
+                        </View>
+                      )}
 
-                    {serie.nota !== undefined &&
-                    serie.nota !== null &&
-                    serie.nota !== '' ? (
-                      <View style={styles.nota}>
-                        <Text style={styles.notaTexto}>
-                          ★ {serie.nota}
-                        </Text>
-                      </View>
-                    ) : null}
+                      {serie.nota !== undefined &&
+                      serie.nota !== null &&
+                      serie.nota !== '' ? (
+                        <View style={styles.nota}>
+                          <Text style={styles.notaTexto}>
+                            ★ {serie.nota}
+                          </Text>
+                        </View>
+                      ) : null}
 
-                    <Text style={styles.nomeSerie} numberOfLines={1}>
-                      {serie.nome || 'Série sem título'}
-                    </Text>
+                      <Text
+                        style={styles.nomeSerie}
+                        numberOfLines={1}
+                      >
+                        {titulo}
+                      </Text>
 
-                    <Text style={styles.genero} numberOfLines={1}>
-                      {serie.genero || 'Gênero não informado'}
-                    </Text>
-                  </Pressable>
+                      <Text
+                        style={styles.genero}
+                        numberOfLines={1}
+                      >
+                        {genero}
+                      </Text>
+                    </Pressable>
 
-                  <Pressable
-                    style={styles.botaoRemover}
-                    onPress={() => removerFavorito(serie)}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Remover ${serie.nome} dos favoritos`}
-                    hitSlop={8}
-                  >
-                    <MaterialCommunityIcons
-                      name="heart"
-                      size={23}
-                      color="#E50914"
-                    />
-                  </Pressable>
-                </View>
-              ))}
+                    <Pressable
+                      style={styles.botaoRemover}
+                      onPress={() => removerFavorito(serie)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Remover ${titulo} dos favoritos`}
+                      hitSlop={8}
+                    >
+                      <MaterialCommunityIcons
+                        name="heart"
+                        size={23}
+                        color="#E50914"
+                      />
+                    </Pressable>
+                  </View>
+                );
+              })}
             </View>
           )}
         </View>
@@ -212,7 +233,6 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
 
-  // Mesmo cabeçalho da Home
   header: {
     paddingTop: 58,
     paddingHorizontal: 22,

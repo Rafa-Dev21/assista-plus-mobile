@@ -1,5 +1,6 @@
 
-import { useState } from 'react';
+
+import { useState, useEffect, useCallback } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import {
   View,
@@ -15,41 +16,26 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { useFavoritos } from '../context/FavoritosContext';
 
+const API_URL = 'https://assista-plus.onrender.com';
+
 const DetalhesSerieScreen = ({ route, navigation }) => {
   const serie = route?.params?.serie;
+  const usuario = route?.params?.usuario;
 
   const { alternarFavorito, ehFavorito } = useFavoritos();
 
   const favorita = serie ? ehFavorito(serie.id) : false;
 
-  const [temporadaAberta, setTemporadaAberta] = useState(1);
+  const [temporadaAberta, setTemporadaAberta] = useState(null);
   const [notaSelecionada, setNotaSelecionada] = useState(0);
   const [comentario, setComentario] = useState('');
 
-  // Avaliações locais de demonstração.
-  // Posteriormente, podem ser substituídas pelas avaliações da API.
-  const [avaliacoes, setAvaliacoes] = useState([
-    {
-      id: '1',
-      usuario: 'Lucas Oliveira',
-      nota: 5,
-      comentario:
-        'Uma das melhores séries que já assisti! A história prende do começo ao fim e os personagens são incríveis.',
-      data: 'Há 2 dias',
-      exemplo: true,
-    },
-    {
-      id: '2',
-      usuario: 'Mariana Santos',
-      nota: 4,
-      comentario:
-        'A primeira temporada é muito boa. O clima de mistério é o que mais gostei!',
-      data: 'Há 5 dias',
-      exemplo: true,
-    },
-  ]);
+  const [temporadas, setTemporadas] = useState([]);
+  const [avaliacoes, setAvaliacoes] = useState([]);
 
-  // Dados reais disponíveis no retorno da API.
+  const [carregando, setCarregando] = useState(true);
+  const [publicando, setPublicando] = useState(false);
+
   const detalhes = {
     sinopse:
       serie?.descricao?.trim() ||
@@ -71,47 +57,73 @@ const DetalhesSerieScreen = ({ route, navigation }) => {
       'Não informado',
   };
 
-  // Temporadas e episódios de demonstração.
-  // A API atual ainda não fornece esses dados.
-  const temporadas = [
-    {
-      id: 1,
-      numero: 1,
-      episodios: [
-        {
-          numero: 1,
-          titulo: 'Capítulo Um: O Desaparecimento de Will Byers',
-          duracao: 48,
-        },
-        {
-          numero: 2,
-          titulo: 'Capítulo Dois: A Estranha da Rua Maple',
-          duracao: 55,
-        },
-        {
-          numero: 3,
-          titulo: 'Capítulo Três: Caramba',
-          duracao: 51,
-        },
-      ],
-    },
-    {
-      id: 2,
-      numero: 2,
-      episodios: [
-        {
-          numero: 1,
-          titulo: 'Capítulo Um: MADMAX',
-          duracao: 48,
-        },
-        {
-          numero: 2,
-          titulo: 'Capítulo Dois: Doces ou Travessuras',
-          duracao: 56,
-        },
-      ],
-    },
-  ];
+  const carregarDados = useCallback(async () => {
+    if (!serie?.id) return;
+
+    try {
+      setCarregando(true);
+
+      const [resTemporadas, resEpisodios, resAvaliacoes] =
+        await Promise.all([
+          fetch(`${API_URL}/temporadas?page=0&size=100`),
+          fetch(`${API_URL}/episodios?page=0&size=100`),
+          fetch(`${API_URL}/avaliacoes?page=0&size=100`),
+        ]);
+
+      if (!resTemporadas.ok || !resEpisodios.ok || !resAvaliacoes.ok) {
+        throw new Error('Não foi possível consultar os dados da série.');
+      }
+
+      const dadosTemporadas = await resTemporadas.json();
+      const dadosEpisodios = await resEpisodios.json();
+      const dadosAvaliacoes = await resAvaliacoes.json();
+
+      const listaTemporadas =
+        dadosTemporadas?._embedded?.temporadaResponseDTOList || [];
+
+      const listaEpisodios =
+        dadosEpisodios?._embedded?.episodioResponseDTOList || [];
+
+      const listaAvaliacoes =
+        dadosAvaliacoes?._embedded?.avaliacaoResponseDTOList || [];
+
+      const temporadasDaSerie = listaTemporadas
+        .filter(
+          (temporada) =>
+            Number(temporada.serieId) === Number(serie.id)
+        )
+        .sort((a, b) => a.numero - b.numero)
+        .map((temporada) => ({
+          ...temporada,
+          episodios: listaEpisodios
+            .filter(
+              (episodio) =>
+                Number(episodio.temporadaId) === Number(temporada.id)
+            )
+            .sort((a, b) => a.numero - b.numero),
+        }));
+
+      const avaliacoesDaSerie = listaAvaliacoes.filter(
+        (avaliacao) =>
+          Number(avaliacao.serieId) === Number(serie.id)
+      );
+
+      setTemporadas(temporadasDaSerie);
+      setAvaliacoes(avaliacoesDaSerie);
+    } catch (error) {
+      console.log('Erro ao carregar detalhes:', error.message);
+      Alert.alert(
+        'Erro',
+        'Não foi possível carregar as informações da série.'
+      );
+    } finally {
+      setCarregando(false);
+    }
+  }, [serie?.id]);
+
+  useEffect(() => {
+    carregarDados();
+  }, [carregarDados]);
 
   const quantidadeEpisodios = temporadas.reduce(
     (total, temporada) =>
@@ -119,7 +131,7 @@ const DetalhesSerieScreen = ({ route, navigation }) => {
     0
   );
 
-  const publicarAvaliacao = () => {
+  const publicarAvaliacao = async () => {
     const textoComentario = comentario.trim();
 
     if (notaSelecionada === 0) {
@@ -133,32 +145,63 @@ const DetalhesSerieScreen = ({ route, navigation }) => {
     if (!textoComentario) {
       Alert.alert(
         'Escreva um comentário',
-        'Digite sua opinião antes de publicar a avaliação.'
+        'Digite sua opinião antes de publicar.'
       );
       return;
     }
 
-    const novaAvaliacao = {
-      id: `${Date.now()}`,
-      usuario: 'Você',
-      nota: notaSelecionada,
-      comentario: textoComentario,
-      data: 'Agora mesmo',
-      exemplo: false,
-    };
+    if (!usuario?.id) {
+      Alert.alert(
+        'Usuário não identificado',
+        'Não foi possível identificar o usuário logado. Faça login novamente.'
+      );
+      return;
+    }
 
-    setAvaliacoes((listaAtual) => [
-      novaAvaliacao,
-      ...listaAtual,
-    ]);
+    if (!serie?.id) {
+      Alert.alert('Erro', 'Não foi possível identificar a série.');
+      return;
+    }
 
-    setNotaSelecionada(0);
-    setComentario('');
+    try {
+      setPublicando(true);
 
-    Alert.alert(
-      'Avaliação publicada!',
-      'Seu comentário foi adicionado à lista nesta sessão. Ele ainda não foi enviado à API.'
-    );
+      const resposta = await fetch(`${API_URL}/avaliacoes`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          nota: notaSelecionada,
+          comentario: textoComentario,
+          usuarioId: usuario.id,
+          serieId: serie.id,
+        }),
+      });
+
+      if (!resposta.ok) {
+        const erro = await resposta.text();
+        throw new Error(erro || 'Não foi possível publicar a avaliação.');
+      }
+
+      setNotaSelecionada(0);
+      setComentario('');
+
+      await carregarDados();
+
+      Alert.alert(
+        'Avaliação publicada!',
+        'Sua avaliação foi salva com sucesso.'
+      );
+    } catch (error) {
+      console.log('Erro ao publicar avaliação:', error.message);
+      Alert.alert(
+        'Erro',
+        'Não foi possível salvar sua avaliação. Tente novamente.'
+      );
+    } finally {
+      setPublicando(false);
+    }
   };
 
   const handleFavorito = () => {
@@ -173,9 +216,7 @@ const DetalhesSerieScreen = ({ route, navigation }) => {
     alternarFavorito(serie);
 
     Alert.alert(
-      favorita
-        ? 'Favorito removido'
-        : 'Adicionado aos favoritos',
+      favorita ? 'Favorito removido' : 'Adicionado aos favoritos',
       favorita
         ? 'A série foi removida dos seus favoritos.'
         : 'A série foi salva nos favoritos do seu aparelho.'
@@ -195,9 +236,7 @@ const DetalhesSerieScreen = ({ route, navigation }) => {
           style={styles.botaoVoltar}
           onPress={() => navigation?.goBack()}
         >
-          <Text style={styles.textoVoltar}>
-            ‹  Voltar
-          </Text>
+          <Text style={styles.textoVoltar}>‹  Voltar</Text>
         </Pressable>
       </View>
     );
@@ -216,12 +255,10 @@ const DetalhesSerieScreen = ({ route, navigation }) => {
           style={styles.botaoVoltar}
           onPress={() => navigation?.goBack()}
         >
-          <Text style={styles.textoVoltar}>
-            ‹  Voltar
-          </Text>
+          <Text style={styles.textoVoltar}>‹  Voltar</Text>
         </Pressable>
 
-        {/* Informações principais da série */}
+        {/* Informações principais */}
         <View style={styles.cabecalho}>
           {serie.imagemUrl ? (
             <Image
@@ -236,7 +273,6 @@ const DetalhesSerieScreen = ({ route, navigation }) => {
                 size={38}
                 color="#777777"
               />
-
               <Text style={styles.textoCapaVazia}>
                 Sem imagem
               </Text>
@@ -270,7 +306,7 @@ const DetalhesSerieScreen = ({ route, navigation }) => {
           </View>
         </View>
 
-        {/* Botão de favoritar */}
+        {/* Favoritos */}
         <View style={styles.areaFavorito}>
           <Pressable
             style={[
@@ -278,12 +314,6 @@ const DetalhesSerieScreen = ({ route, navigation }) => {
               favorita && styles.botaoFavoritoAtivo,
             ]}
             onPress={handleFavorito}
-            accessibilityRole="button"
-            accessibilityLabel={
-              favorita
-                ? 'Remover série dos favoritos'
-                : 'Adicionar série aos favoritos'
-            }
           >
             <MaterialCommunityIcons
               name={favorita ? 'heart' : 'heart-outline'}
@@ -301,10 +331,7 @@ const DetalhesSerieScreen = ({ route, navigation }) => {
 
         {/* Sinopse */}
         <View style={styles.secao}>
-          <Text style={styles.tituloSecao}>
-            Sinopse
-          </Text>
-
+          <Text style={styles.tituloSecao}>Sinopse</Text>
           <Text style={styles.descricao}>
             {detalhes.sinopse}
           </Text>
@@ -312,9 +339,7 @@ const DetalhesSerieScreen = ({ route, navigation }) => {
 
         {/* Gêneros */}
         <View style={styles.secao}>
-          <Text style={styles.tituloSecao}>
-            Gêneros
-          </Text>
+          <Text style={styles.tituloSecao}>Gêneros</Text>
 
           {detalhes.generos.length > 0 ? (
             <View style={styles.listaGeneros}>
@@ -342,129 +367,130 @@ const DetalhesSerieScreen = ({ route, navigation }) => {
             Temporadas e episódios
           </Text>
 
-          <Text style={styles.textoAuxiliar}>
-            Conteúdo de demonstração. As temporadas e os episódios
-            ainda não estão disponíveis na API.
-          </Text>
+          {carregando ? (
+            <Text style={styles.textoAuxiliar}>
+              Carregando temporadas e episódios...
+            </Text>
+          ) : temporadas.length === 0 ? (
+            <Text style={styles.textoAuxiliar}>
+              Nenhuma temporada cadastrada para esta série.
+            </Text>
+          ) : (
+            <>
+              <Text style={styles.textoAuxiliar}>
+                {temporadas.length} temporada(s) · {quantidadeEpisodios} episódio(s)
+              </Text>
 
-          {temporadas.map((temporada) => {
-            const aberta =
-              temporadaAberta === temporada.id;
+              {temporadas.map((temporada) => {
+                const aberta =
+                  temporadaAberta === temporada.id;
 
-            return (
-              <View
-                key={temporada.id}
-                style={styles.cardTemporada}
-              >
-                <Pressable
-                  style={styles.cabecalhoTemporada}
-                  onPress={() =>
-                    setTemporadaAberta(
-                      aberta ? null : temporada.id
-                    )
-                  }
-                >
-                  <View style={styles.numeroTemporada}>
-                    <Text style={styles.numeroTemporadaTexto}>
-                      {temporada.numero}
-                    </Text>
-                  </View>
-
-                  <View style={styles.infoTemporada}>
-                    <Text style={styles.nomeTemporada}>
-                      Temporada {temporada.numero}
-                    </Text>
-
-                    <Text style={styles.quantidadeEpisodiosTexto}>
-                      {temporada.episodios.length}{' '}
-                      {temporada.episodios.length === 1
-                        ? 'episódio'
-                        : 'episódios'}
-                    </Text>
-                  </View>
-
-                  <Text style={styles.setaTemporada}>
-                    {aberta ? '−' : '+'}
-                  </Text>
-                </Pressable>
-
-                {aberta && (
-                  <View style={styles.listaEpisodios}>
-                    {temporada.episodios.map((episodio) => (
-                      <View
-                        key={`${temporada.id}-${episodio.numero}`}
-                        style={styles.cardEpisodio}
-                      >
-                        <View style={styles.numeroEpisodio}>
-                          <Text style={styles.numeroEpisodioTexto}>
-                            {String(episodio.numero).padStart(2, '0')}
-                          </Text>
-                        </View>
-
-                        <View style={styles.infoEpisodio}>
-                          <Text style={styles.tituloEpisodio}>
-                            {episodio.titulo}
-                          </Text>
-
-                          <Text style={styles.detalheEpisodio}>
-                            Episódio {episodio.numero}
-                          </Text>
-                        </View>
-
-                        <Text style={styles.duracaoEpisodio}>
-                          {episodio.duracao} min
+                return (
+                  <View
+                    key={temporada.id}
+                    style={styles.cardTemporada}
+                  >
+                    <Pressable
+                      style={styles.cabecalhoTemporada}
+                      onPress={() =>
+                        setTemporadaAberta(
+                          aberta ? null : temporada.id
+                        )
+                      }
+                    >
+                      <View style={styles.numeroTemporada}>
+                        <Text style={styles.numeroTemporadaTexto}>
+                          {temporada.numero}
                         </Text>
                       </View>
-                    ))}
+
+                      <View style={styles.infoTemporada}>
+                        <Text style={styles.nomeTemporada}>
+                          Temporada {temporada.numero}
+                        </Text>
+
+                        <Text style={styles.quantidadeEpisodiosTexto}>
+                          {temporada.episodios.length}{' '}
+                          {temporada.episodios.length === 1
+                            ? 'episódio'
+                            : 'episódios'}
+                        </Text>
+                      </View>
+
+                      <Text style={styles.setaTemporada}>
+                        {aberta ? '−' : '+'}
+                      </Text>
+                    </Pressable>
+
+                    {aberta && (
+                      <View style={styles.listaEpisodios}>
+                        {temporada.episodios.length === 0 ? (
+                          <Text style={styles.textoAuxiliar}>
+                            Nenhum episódio cadastrado nesta temporada.
+                          </Text>
+                        ) : (
+                          temporada.episodios.map((episodio) => (
+                            <View
+                              key={episodio.id}
+                              style={styles.cardEpisodio}
+                            >
+                              <View style={styles.numeroEpisodio}>
+                                <Text style={styles.numeroEpisodioTexto}>
+                                  {String(episodio.numero).padStart(2, '0')}
+                                </Text>
+                              </View>
+
+                              <View style={styles.infoEpisodio}>
+                                <Text style={styles.tituloEpisodio}>
+                                  {episodio.titulo}
+                                </Text>
+
+                                <Text style={styles.detalheEpisodio}>
+                                  Episódio {episodio.numero}
+                                </Text>
+                              </View>
+
+                              <Text style={styles.duracaoEpisodio}>
+                                {episodio.duracao
+                                  ? `${episodio.duracao} min`
+                                  : ''}
+                              </Text>
+                            </View>
+                          ))
+                        )}
+                      </View>
+                    )}
                   </View>
-                )}
-              </View>
-            );
-          })}
-        </View>
-
-        {/* Elenco */}
-        <View style={styles.secao}>
-          <Text style={styles.tituloSecao}>
-            Elenco
-          </Text>
-
-          <Text style={styles.textoAuxiliar}>
-            Os atores ainda não são fornecidos pela API.
-          </Text>
+                );
+              })}
+            </>
+          )}
         </View>
 
         {/* Direção */}
         <View style={styles.secao}>
-          <Text style={styles.tituloSecao}>
-            Direção
-          </Text>
-
+          <Text style={styles.tituloSecao}>Direção</Text>
           <Text style={styles.descricao}>
             {detalhes.diretor}
           </Text>
         </View>
 
-        {/* Avaliações e comentários */}
+        {/* Avaliações */}
         <View style={styles.secao}>
           <Text style={styles.tituloSecao}>
             Comentários e avaliações
           </Text>
 
           <Text style={styles.textoAuxiliar}>
-            Veja os exemplos de opiniões e compartilhe a sua.
-            As avaliações ainda são locais e não são enviadas à API.
+            Compartilhe sua opinião sobre esta série.
           </Text>
 
-          {/* Formulário de avaliação */}
           <View style={styles.formularioAvaliacao}>
             <Text style={styles.tituloFormulario}>
               Deixe sua avaliação
             </Text>
 
-            <Text style={styles.rotuloNota}>
-              Sua nota
-            </Text>
+            <Text style={styles.rotuloNota}>Sua nota</Text>
 
             <View style={styles.estrelas}>
               {[1, 2, 3, 4, 5].map((nota) => (
@@ -508,16 +534,20 @@ const DetalhesSerieScreen = ({ route, navigation }) => {
             </Text>
 
             <Pressable
-              style={styles.botaoEnviar}
+              style={[
+                styles.botaoEnviar,
+                publicando && { opacity: 0.6 },
+              ]}
               onPress={publicarAvaliacao}
+              disabled={publicando}
             >
               <Text style={styles.textoBotaoEnviar}>
-                Publicar avaliação
+                {publicando ? 'Publicando...' : 'Publicar avaliação'}
               </Text>
             </Pressable>
           </View>
 
-          {/* Lista de comentários */}
+          {/* Lista de avaliações reais */}
           <View style={styles.cabecalhoComentarios}>
             <Text style={styles.subtituloComentarios}>
               Todas as avaliações
@@ -528,11 +558,13 @@ const DetalhesSerieScreen = ({ route, navigation }) => {
             </Text>
           </View>
 
-          {avaliacoes.length === 0 ? (
+          {carregando ? (
+            <Text style={styles.textoAuxiliar}>
+              Carregando avaliações...
+            </Text>
+          ) : avaliacoes.length === 0 ? (
             <View style={styles.semAvaliacoes}>
-              <Text style={styles.iconeSemAvaliacoes}>
-                ☆
-              </Text>
+              <Text style={styles.iconeSemAvaliacoes}>☆</Text>
 
               <Text style={styles.tituloSemAvaliacoes}>
                 Nenhuma avaliação ainda
@@ -543,71 +575,72 @@ const DetalhesSerieScreen = ({ route, navigation }) => {
               </Text>
             </View>
           ) : (
-            avaliacoes.map((avaliacao) => (
-              <View
-                key={avaliacao.id}
-                style={styles.cardAvaliacao}
-              >
-                <View style={styles.cabecalhoAvaliacao}>
-                  <View style={styles.avatar}>
-                    <Text style={styles.letraAvatar}>
-                      {avaliacao.usuario.charAt(0).toUpperCase()}
-                    </Text>
+            avaliacoes.map((avaliacao) => {
+              const nomeUsuario =
+                avaliacao.usuarioNome || 'Usuário';
+
+              return (
+                <View
+                  key={avaliacao.id}
+                  style={styles.cardAvaliacao}
+                >
+                  <View style={styles.cabecalhoAvaliacao}>
+                    <View style={styles.avatar}>
+                      <Text style={styles.letraAvatar}>
+                        {nomeUsuario.charAt(0).toUpperCase()}
+                      </Text>
+                    </View>
+
+                    <View style={styles.infoUsuario}>
+                      <Text style={styles.nomeUsuario}>
+                        {nomeUsuario}
+                      </Text>
+
+                      <Text style={styles.dataAvaliacao}>
+                        {avaliacao.serieTitulo || serie.titulo}
+                      </Text>
+                    </View>
+
+                    <View style={styles.notaUsuario}>
+                      <Text style={styles.notaUsuarioTexto}>
+                        ★ {avaliacao.nota}/5
+                      </Text>
+                    </View>
                   </View>
 
-                  <View style={styles.infoUsuario}>
-                    <Text style={styles.nomeUsuario}>
-                      {avaliacao.usuario}
-                    </Text>
-
-                    <Text style={styles.dataAvaliacao}>
-                      {avaliacao.data}
-                    </Text>
+                  <View style={styles.estrelasComentario}>
+                    {[1, 2, 3, 4, 5].map((estrela) => (
+                      <Text
+                        key={estrela}
+                        style={[
+                          styles.estrelaPequena,
+                          estrela <= avaliacao.nota &&
+                            styles.estrelaPequenaSelecionada,
+                        ]}
+                      >
+                        ★
+                      </Text>
+                    ))}
                   </View>
 
-                  <View style={styles.notaUsuario}>
-                    <Text style={styles.notaUsuarioTexto}>
-                      ★ {avaliacao.nota}/5
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={styles.estrelasComentario}>
-                  {[1, 2, 3, 4, 5].map((estrela) => (
-                    <Text
-                      key={estrela}
-                      style={[
-                        styles.estrelaPequena,
-                        estrela <= avaliacao.nota &&
-                          styles.estrelaPequenaSelecionada,
-                      ]}
-                    >
-                      ★
-                    </Text>
-                  ))}
-                </View>
-
-                <Text style={styles.textoComentarioPublicado}>
-                  {avaliacao.comentario}
-                </Text>
-
-                {avaliacao.exemplo && (
-                  <Text style={styles.avisoExemplo}>
-                    Comentário de demonstração
+                  <Text style={styles.textoComentarioPublicado}>
+                    {avaliacao.comentario}
                   </Text>
-                )}
-              </View>
-            ))
+                </View>
+              );
+            })
           )}
 
           <Text style={styles.aviso}>
-            As avaliações são temporárias e não são salvas na API.
+            As avaliações são carregadas e salvas na API.
           </Text>
         </View>
       </ScrollView>
     </View>
   );
 };
+
+
 
 export default DetalhesSerieScreen;
 
