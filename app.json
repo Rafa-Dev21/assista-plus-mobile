@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "assistaplusprojeto",
-    "slug": "assistaplusprojeto",
+    "slug": "assista",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -15,7 +15,8 @@
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
-      }
+      },
+      "package": "com.rafaytsteam.assista"
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -23,6 +24,12 @@
     "plugins": [
       "expo-status-bar",
       "expo-secure-store"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "c8ab1186-7d7c-4b97-9ee8-ae5df5e32d00"
+      }
+    },
+    "owner": "rafayts-team"
   }
 }
