@@ -1,12 +1,17 @@
 
 const API_URL = 'https://assista-plus.onrender.com';
 
+const API_KEY = 'minha-chave-mestra-123';
+
+const HEADERS = {
+  Accept: 'application/json',
+  'X-API-Key': API_KEY,
+};
+
 export async function apiGet(endpoint) {
   const resposta = await fetch(`${API_URL}${endpoint}`, {
     method: 'GET',
-    headers: {
-      Accept: 'application/json',
-    },
+    headers: HEADERS,
   });
 
   if (!resposta.ok) {
@@ -20,8 +25,8 @@ export async function apiPost(endpoint, dados) {
   const resposta = await fetch(`${API_URL}${endpoint}`, {
     method: 'POST',
     headers: {
+      ...HEADERS,
       'Content-Type': 'application/json',
-      Accept: 'application/json',
     },
     body: JSON.stringify(dados),
   });

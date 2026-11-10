@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 
-const API_URL = 'https://assista-plus.onrender.com/series';
+import { apiGet } from '../services/api';
 
 export default function HomeScreen({ onAbrirSerie }) {
   const [busca, setBusca] = useState('');
@@ -26,13 +26,7 @@ export default function HomeScreen({ onAbrirSerie }) {
       setCarregando(true);
       setErro('');
 
-      const resposta = await fetch(API_URL);
-
-      if (!resposta.ok) {
-        throw new Error(`Erro HTTP: ${resposta.status}`);
-      }
-
-      const dados = await resposta.json();
+      const dados = await apiGet('/series');
 
       console.log('Resposta da API:', dados);
 
@@ -126,7 +120,9 @@ export default function HomeScreen({ onAbrirSerie }) {
 
           {!carregando && erro !== '' && (
             <View style={styles.estadoContainer}>
-              <Text style={styles.erroTexto}>{erro}</Text>
+              <Text style={styles.erroTexto}>
+                {erro}
+              </Text>
 
               <Pressable
                 style={styles.botaoTentar}

@@ -13,10 +13,9 @@ import {
   Alert,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { apiGet, apiPost } from '../services/api';
 
 import { useFavoritos } from '../context/FavoritosContext';
-
-const API_URL = 'https://assista-plus.onrender.com';
 
 const DetalhesSerieScreen = ({ route, navigation }) => {
   const serie = route?.params?.serie;
@@ -57,69 +56,68 @@ const DetalhesSerieScreen = ({ route, navigation }) => {
       'Não informado',
   };
 
-  const carregarDados = useCallback(async () => {
-    if (!serie?.id) return;
+  
+const carregarDados = useCallback(async () => {
+  if (!serie?.id) return;
 
-    try {
-      setCarregando(true);
+  try {
+    setCarregando(true);
 
-      const [resTemporadas, resEpisodios, resAvaliacoes] =
-        await Promise.all([
-          fetch(`${API_URL}/temporadas?page=0&size=100`),
-          fetch(`${API_URL}/episodios?page=0&size=100`),
-          fetch(`${API_URL}/avaliacoes?page=0&size=100`),
-        ]);
+    const [
+      dadosTemporadas,
+      dadosEpisodios,
+      dadosAvaliacoes,
+    ] = await Promise.all([
+      apiGet('/temporadas?page=0&size=100'),
+      apiGet('/episodios?page=0&size=100'),
+      apiGet('/avaliacoes?page=0&size=100'),
+    ]);
 
-      if (!resTemporadas.ok || !resEpisodios.ok || !resAvaliacoes.ok) {
-        throw new Error('Não foi possível consultar os dados da série.');
-      }
+    const listaTemporadas =
+      dadosTemporadas?._embedded?.temporadaResponseDTOList || [];
 
-      const dadosTemporadas = await resTemporadas.json();
-      const dadosEpisodios = await resEpisodios.json();
-      const dadosAvaliacoes = await resAvaliacoes.json();
+    const listaEpisodios =
+      dadosEpisodios?._embedded?.episodioResponseDTOList || [];
 
-      const listaTemporadas =
-        dadosTemporadas?._embedded?.temporadaResponseDTOList || [];
+    const listaAvaliacoes =
+      dadosAvaliacoes?._embedded?.avaliacaoResponseDTOList || [];
 
-      const listaEpisodios =
-        dadosEpisodios?._embedded?.episodioResponseDTOList || [];
+    const temporadasDaSerie = listaTemporadas
+      .filter(
+        (temporada) =>
+          Number(temporada.serieId) === Number(serie.id)
+      )
+      .sort((a, b) => a.numero - b.numero)
+      .map((temporada) => ({
+        ...temporada,
+        episodios: listaEpisodios
+          .filter(
+            (episodio) =>
+              Number(episodio.temporadaId) === Number(temporada.id)
+          )
+          .sort((a, b) => a.numero - b.numero),
+      }));
 
-      const listaAvaliacoes =
-        dadosAvaliacoes?._embedded?.avaliacaoResponseDTOList || [];
+    const avaliacoesDaSerie = listaAvaliacoes.filter(
+      (avaliacao) =>
+        Number(avaliacao.serieId) === Number(serie.id)
+    );
 
-      const temporadasDaSerie = listaTemporadas
-        .filter(
-          (temporada) =>
-            Number(temporada.serieId) === Number(serie.id)
-        )
-        .sort((a, b) => a.numero - b.numero)
-        .map((temporada) => ({
-          ...temporada,
-          episodios: listaEpisodios
-            .filter(
-              (episodio) =>
-                Number(episodio.temporadaId) === Number(temporada.id)
-            )
-            .sort((a, b) => a.numero - b.numero),
-        }));
+    setTemporadas(temporadasDaSerie);
+    setAvaliacoes(avaliacoesDaSerie);
 
-      const avaliacoesDaSerie = listaAvaliacoes.filter(
-        (avaliacao) =>
-          Number(avaliacao.serieId) === Number(serie.id)
-      );
+  } catch (error) {
+    console.log('Erro ao carregar detalhes:', error.message);
 
-      setTemporadas(temporadasDaSerie);
-      setAvaliacoes(avaliacoesDaSerie);
-    } catch (error) {
-      console.log('Erro ao carregar detalhes:', error.message);
-      Alert.alert(
-        'Erro',
-        'Não foi possível carregar as informações da série.'
-      );
-    } finally {
-      setCarregando(false);
-    }
-  }, [serie?.id]);
+    Alert.alert(
+      'Erro',
+      'Não foi possível carregar as informações da série.'
+    );
+  } finally {
+    setCarregando(false);
+  }
+}, [serie?.id]);
+
 
   useEffect(() => {
     carregarDados();
@@ -131,78 +129,70 @@ const DetalhesSerieScreen = ({ route, navigation }) => {
     0
   );
 
-  const publicarAvaliacao = async () => {
-    const textoComentario = comentario.trim();
+  
+const publicarAvaliacao = async () => {
+  const textoComentario = comentario.trim();
 
-    if (notaSelecionada === 0) {
-      Alert.alert(
-        'Escolha uma nota',
-        'Selecione de 1 a 5 estrelas antes de publicar.'
-      );
-      return;
-    }
+  if (notaSelecionada === 0) {
+    Alert.alert(
+      'Escolha uma nota',
+      'Selecione de 1 a 5 estrelas antes de publicar.'
+    );
+    return;
+  }
 
-    if (!textoComentario) {
-      Alert.alert(
-        'Escreva um comentário',
-        'Digite sua opinião antes de publicar.'
-      );
-      return;
-    }
+  if (!textoComentario) {
+    Alert.alert(
+      'Escreva um comentário',
+      'Digite sua opinião antes de publicar.'
+    );
+    return;
+  }
 
-    if (!usuario?.id) {
-      Alert.alert(
-        'Usuário não identificado',
-        'Não foi possível identificar o usuário logado. Faça login novamente.'
-      );
-      return;
-    }
+  if (!usuario?.id) {
+    Alert.alert(
+      'Usuário não identificado',
+      'Não foi possível identificar o usuário logado. Faça login novamente.'
+    );
+    return;
+  }
 
-    if (!serie?.id) {
-      Alert.alert('Erro', 'Não foi possível identificar a série.');
-      return;
-    }
+  if (!serie?.id) {
+    Alert.alert('Erro', 'Não foi possível identificar a série.');
+    return;
+  }
 
-    try {
-      setPublicando(true);
+  try {
+    setPublicando(true);
 
-      const resposta = await fetch(`${API_URL}/avaliacoes`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          nota: notaSelecionada,
-          comentario: textoComentario,
-          usuarioId: usuario.id,
-          serieId: serie.id,
-        }),
-      });
+    await apiPost('/avaliacoes', {
+      nota: notaSelecionada,
+      comentario: textoComentario,
+      usuarioId: usuario.id,
+      serieId: serie.id,
+    });
 
-      if (!resposta.ok) {
-        const erro = await resposta.text();
-        throw new Error(erro || 'Não foi possível publicar a avaliação.');
-      }
+    setNotaSelecionada(0);
+    setComentario('');
 
-      setNotaSelecionada(0);
-      setComentario('');
+    await carregarDados();
 
-      await carregarDados();
+    Alert.alert(
+      'Avaliação publicada!',
+      'Sua avaliação foi salva com sucesso.'
+    );
+  } catch (error) {
+    console.log('Erro ao publicar avaliação:', error.message);
 
-      Alert.alert(
-        'Avaliação publicada!',
-        'Sua avaliação foi salva com sucesso.'
-      );
-    } catch (error) {
-      console.log('Erro ao publicar avaliação:', error.message);
-      Alert.alert(
-        'Erro',
-        'Não foi possível salvar sua avaliação. Tente novamente.'
-      );
-    } finally {
-      setPublicando(false);
-    }
-  };
+    Alert.alert(
+      'Erro',
+      'Não foi possível salvar sua avaliação. Tente novamente.'
+    );
+  } finally {
+    setPublicando(false);
+  }
+};
+
 
   const handleFavorito = () => {
     if (!serie) {
